@@ -11,15 +11,15 @@ pub use bevy_derive::AppLabel;
 use bevy_ecs::{
     component::RequiredComponentsError,
     error::{DefaultErrorHandler, ErrorHandler},
-    event::Event,
     intern::Interned,
     message::{message_update_system, MessageCursor},
+    observer::{IntoObserverConfigs, IntoObserverSetConfigs},
     prelude::*,
     schedule::{
         InternedSystemSet, ScheduleBuildSettings, ScheduleCleanupPolicy, ScheduleError,
         ScheduleLabel,
     },
-    system::{IntoObserverSystem, ScheduleSystem, SystemId, SystemInput},
+    system::{ScheduleSystem, SystemId, SystemInput},
 };
 use bevy_platform::collections::HashMap;
 use core::{fmt::Debug, num::NonZero, panic::AssertUnwindSafe};
@@ -1392,11 +1392,23 @@ impl App {
     ///     }
     /// });
     /// ```
-    pub fn add_observer<E: Event, B: Bundle, M>(
+    pub fn add_observer<M>(&mut self, observer: impl IntoObserverConfigs<M>) -> &mut Self {
+        self.world_mut().add_observers(observer);
+        self
+    }
+
+    /// Adds multiple observers to the app's [`World`].
+    pub fn add_observers<M>(&mut self, observers: impl IntoObserverConfigs<M>) -> &mut Self {
+        self.world_mut().add_observers(observers);
+        self
+    }
+
+    /// Configures observer set hierarchy and ordering.
+    pub fn configure_observer_sets<M>(
         &mut self,
-        observer: impl IntoObserverSystem<E, B, M>,
+        sets: impl IntoObserverSetConfigs<M>,
     ) -> &mut Self {
-        self.world_mut().add_observer(observer);
+        self.world_mut().configure_observer_sets(sets);
         self
     }
 
