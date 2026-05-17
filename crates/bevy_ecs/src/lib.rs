@@ -80,7 +80,7 @@ pub mod prelude {
         lifecycle::{Add, Despawn, Insert, Remove, RemovedComponents, Replace},
         message::{Message, MessageMutator, MessageReader, MessageWriter, Messages},
         name::{Name, NameOrEntity},
-        observer::{Observer, On},
+        observer::{Observer, ObserverSet, On},
         query::{Added, Allow, AnyOf, Changed, Has, Or, QueryBuilder, QueryState, With, Without},
         related,
         relationship::RelationshipTarget,
