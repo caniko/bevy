@@ -8,7 +8,7 @@ use crate::{
     entity::{Entity, EntityCloner, EntityClonerBuilder, EntityLocation, OptIn, OptOut},
     event::{EntityComponentsTrigger, EntityEvent},
     lifecycle::{Despawn, Remove, Replace, DESPAWN, REMOVE, REPLACE},
-    observer::Observer,
+    observer::{EdgeTarget, IntoObserverConfigs},
     query::{
         has_conflicts, Access, DebugCheckedUnwrap, QueryAccessError, ReadOnlyQueryData,
         ReleaseStateQueryData,
@@ -16,7 +16,6 @@ use crate::{
     relationship::RelationshipHookMode,
     resource::Resource,
     storage::{SparseSets, Table},
-    system::IntoObserverSystem,
     world::{
         error::EntityComponentError, unsafe_world_cell::UnsafeEntityCell, ComponentEntry,
         DynamicComponentFetch, EntityMut, EntityRef, FilteredEntityMut, FilteredEntityRef, Mut,
@@ -1883,22 +1882,31 @@ impl<'w> EntityWorldMut<'w> {
     ///
     /// Panics if the given system is an exclusive system.
     #[track_caller]
-    pub fn observe<E: EntityEvent, B: Bundle, M>(
-        &mut self,
-        observer: impl IntoObserverSystem<E, B, M>,
-    ) -> &mut Self {
+    pub fn observe<M>(&mut self, observer: impl IntoObserverConfigs<M>) -> &mut Self {
         self.observe_with_caller(observer, MaybeLocation::caller())
     }
 
-    pub(crate) fn observe_with_caller<E: EntityEvent, B: Bundle, M>(
+    pub(crate) fn observe_with_caller<M>(
         &mut self,
-        observer: impl IntoObserverSystem<E, B, M>,
+        observer: impl IntoObserverConfigs<M>,
         caller: MaybeLocation,
     ) -> &mut Self {
         self.assert_not_despawned();
-        let bundle = Observer::new(observer).with_entity(self.entity);
-        move_as_ptr!(bundle);
-        self.world.spawn_with_caller(bundle, caller);
+        let configs = observer.into_configs();
+        let mut previous = None;
+
+        for mut observer in configs.observers {
+            observer.watch_entity(self.entity);
+            if configs.chain
+                && let Some(previous) = previous
+            {
+                observer.after_inner(EdgeTarget::Entity(previous));
+            }
+
+            move_as_ptr!(observer);
+            previous = Some(self.world.spawn_with_caller(observer, caller).id());
+        }
+
         self.world.flush();
         self.update_location();
         self

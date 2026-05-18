@@ -26,12 +26,11 @@ use crate::{
     error::{warn, BevyError, CommandWithEntity, ErrorContext, HandleError},
     event::{EntityEvent, Event},
     message::Message,
-    observer::Observer,
+    observer::{EdgeTarget, IntoObserverConfigs},
     resource::Resource,
     schedule::ScheduleLabel,
     system::{
-        Deferred, IntoObserverSystem, IntoSystem, RegisteredSystem, SystemId, SystemInput,
-        SystemParamValidationError,
+        Deferred, IntoSystem, RegisteredSystem, SystemId, SystemInput, SystemParamValidationError,
     },
     world::{
         command_queue::RawCommandQueue, unsafe_world_cell::UnsafeWorldCell, CommandQueue,
@@ -1174,11 +1173,24 @@ impl<'w, 's> Commands<'w, 's> {
     /// Panics if the given system is an exclusive system.
     ///
     /// [`On`]: crate::observer::On
-    pub fn add_observer<E: Event, B: Bundle, M>(
-        &mut self,
-        observer: impl IntoObserverSystem<E, B, M>,
-    ) -> EntityCommands<'_> {
-        self.spawn(Observer::new(observer))
+    pub fn add_observer<M>(&mut self, observer: impl IntoObserverConfigs<M>) -> EntityCommands<'_> {
+        let configs = observer.into_configs();
+        let mut observers = configs.observers.into_iter();
+        let first = observers
+            .next()
+            .expect("observer configs must contain at least one observer");
+        let first_entity = self.spawn(first).id();
+        let mut previous = first_entity;
+
+        for mut observer in observers {
+            if configs.chain {
+                observer.after_inner(EdgeTarget::Entity(previous));
+            }
+
+            previous = self.spawn(observer).id();
+        }
+
+        self.entity(first_entity)
     }
 
     /// Writes an arbitrary [`Message`].
@@ -2032,9 +2044,9 @@ impl<'a> EntityCommands<'a> {
 
     /// Creates an [`Observer`] watching for an [`EntityEvent`] of type `E` whose [`EntityEvent::event_target`]
     /// targets this entity.
-    pub fn observe<E: EntityEvent, B: Bundle, M>(
+    pub fn observe<M>(
         &mut self,
-        observer: impl IntoObserverSystem<E, B, M>,
+        observer: impl IntoObserverConfigs<M> + Send + 'static,
     ) -> &mut Self {
         self.queue(entity_command::observe(observer))
     }

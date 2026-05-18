@@ -31,6 +31,9 @@ use smallvec::SmallVec;
 #[cfg(feature = "bevy_reflect")]
 use crate::prelude::ReflectComponent;
 
+pub(crate) const WATCH_ENTITY_AFTER_REGISTRATION_MESSAGE: &str =
+    "Observer::watch_entity called after the observer was registered with the world; this has no effect - use entity.observe(...) instead";
+
 /// An [`Observer`] system. Add this [`Component`] to an [`Entity`] to turn it into an "observer".
 ///
 /// Observers watch for a "trigger" of a specific [`Event`]. An event can be triggered on the [`World`]
@@ -269,6 +272,7 @@ impl Observer {
     /// Observes the given `entity` (in addition to any entity already being observed).
     /// This will cause the [`Observer`] to run whenever an [`EntityEvent::event_target`] is the given `entity`.
     /// Note that if this is called _after_ an [`Observer`] is spawned, it will produce no effects.
+    /// In debug builds, calling this after registration will panic to highlight the mistake.
     pub fn with_entity(mut self, entity: Entity) -> Self {
         self.watch_entity(entity);
         self
@@ -277,6 +281,7 @@ impl Observer {
     /// Observes the given `entities` (in addition to any entity already being observed).
     /// This will cause the [`Observer`] to run whenever an [`EntityEvent::event_target`] is any of the `entities`.
     /// Note that if this is called _after_ an [`Observer`] is spawned, it will produce no effects.
+    /// In debug builds, calling this after registration will panic to highlight the mistake.
     pub fn with_entities<I: IntoIterator<Item = Entity>>(mut self, entities: I) -> Self {
         self.watch_entities(entities);
         self
@@ -285,14 +290,30 @@ impl Observer {
     /// Observes the given `entity` (in addition to any entity already being observed).
     /// This will cause the [`Observer`] to run whenever an [`EntityEvent::event_target`] is the given `entity`.
     /// Note that if this is called _after_ an [`Observer`] is spawned, it will produce no effects.
+    /// In debug builds, calling this after registration will panic to highlight the mistake.
     pub fn watch_entity(&mut self, entity: Entity) {
+        debug_assert!(
+            !self.descriptor.frozen,
+            "{WATCH_ENTITY_AFTER_REGISTRATION_MESSAGE}"
+        );
+        if self.descriptor.frozen {
+            return;
+        }
         self.descriptor.entities.push(entity);
     }
 
-    /// Observes the given `entity` (in addition to any entity already being observed).
+    /// Observes the given `entities` (in addition to any entity already being observed).
     /// This will cause the [`Observer`] to run whenever an [`EntityEvent::event_target`] is any of the `entities`.
     /// Note that if this is called _after_ an [`Observer`] is spawned, it will produce no effects.
+    /// In debug builds, calling this after registration will panic to highlight the mistake.
     pub fn watch_entities<I: IntoIterator<Item = Entity>>(&mut self, entities: I) {
+        debug_assert!(
+            !self.descriptor.frozen,
+            "{WATCH_ENTITY_AFTER_REGISTRATION_MESSAGE}"
+        );
+        if self.descriptor.frozen {
+            return;
+        }
         self.descriptor.entities.extend(entities);
     }
 
@@ -430,6 +451,9 @@ pub struct ObserverDescriptor {
 
     /// Optional human-readable observer name used by diagnostics.
     pub(crate) name: Option<String>,
+
+    /// Registration freezes descriptor retargeting because the cache has already consumed it.
+    pub(crate) frozen: bool,
 }
 
 /// An ordering edge declared by an [`ObserverDescriptor`].
