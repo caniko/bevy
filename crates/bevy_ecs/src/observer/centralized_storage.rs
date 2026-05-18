@@ -9,7 +9,7 @@
 //!     - These are split by target type, in order to allow for different lookup strategies.
 
 use alloc::{string::String, vec, vec::Vec};
-use bevy_platform::collections::HashMap;
+use bevy_platform::collections::{HashMap, HashSet};
 use bevy_ptr::PtrMut;
 use log::{debug, warn};
 use smallvec::SmallVec;
@@ -183,6 +183,7 @@ impl Observers {
     }
 
     /// Returns observer entities in `set` for `event_key` in dispatch order.
+    /// Diagnostic helper: allocates a `Vec` per call. Not for hot paths.
     pub fn dispatch_order_for_set<S: IntoObserverOrderingTarget>(
         &self,
         event_key: EventKey,
@@ -196,12 +197,14 @@ impl Observers {
     }
 
     /// Returns observers for `target` and `event_key` in dispatch order.
+    /// Diagnostic helper: allocates a `Vec` per call. Not for hot paths.
     pub fn dispatch_order_for_target(&self, event_key: EventKey, target: Entity) -> Vec<Entity> {
         self.try_get_observers(event_key)
             .map_or_else(Vec::new, |cache| cache.dispatch_order_for_target(target))
     }
 
     /// Returns observer entities and optional names for `event_key` in dispatch order.
+    /// Diagnostic helper: allocates a `Vec` per call. Not for hot paths.
     pub fn dispatch_order_for_with_names(
         &self,
         event_key: EventKey,
@@ -211,6 +214,7 @@ impl Observers {
     }
 
     /// Returns named dispatch-order diagnostics for observers in `set`.
+    /// Diagnostic helper: allocates a `Vec` per call. Not for hot paths.
     pub fn dispatch_order_for_set_with_names<S: IntoObserverOrderingTarget>(
         &self,
         event_key: EventKey,
@@ -226,6 +230,7 @@ impl Observers {
     }
 
     /// Returns named dispatch-order diagnostics for observers watching `target`.
+    /// Diagnostic helper: allocates a `Vec` per call. Not for hot paths.
     pub fn dispatch_order_for_target_with_names(
         &self,
         event_key: EventKey,
@@ -440,6 +445,7 @@ impl CachedObservers {
     }
 
     /// Returns observer entities in `set` in dispatch order.
+    /// Diagnostic helper: allocates a `Vec` per call. Not for hot paths.
     pub fn dispatch_order_for_set(&self, set: Interned<dyn ObserverSet>) -> Vec<Entity> {
         let nodes = self.resolve_set_target(&set);
         self.order
@@ -450,6 +456,7 @@ impl CachedObservers {
     }
 
     /// Returns observer entities watching `target` in dispatch order.
+    /// Diagnostic helper: allocates a `Vec` per call. Not for hot paths.
     pub fn dispatch_order_for_target(&self, target: Entity) -> Vec<Entity> {
         self.by_entity
             .get(&target)
@@ -460,6 +467,7 @@ impl CachedObservers {
     }
 
     /// Returns observer entities and optional names in dispatch order.
+    /// Diagnostic helper: allocates a `Vec` per call. Not for hot paths.
     pub fn dispatch_order_for_with_names(&self) -> Vec<(Entity, Option<&str>)> {
         self.order
             .iter()
@@ -471,6 +479,7 @@ impl CachedObservers {
     }
 
     /// Returns named diagnostics for observer entities in `set` in dispatch order.
+    /// Diagnostic helper: allocates a `Vec` per call. Not for hot paths.
     pub fn dispatch_order_for_set_with_names(
         &self,
         set: Interned<dyn ObserverSet>,
@@ -487,6 +496,7 @@ impl CachedObservers {
     }
 
     /// Returns named diagnostics for observer entities watching `target` in dispatch order.
+    /// Diagnostic helper: allocates a `Vec` per call. Not for hot paths.
     pub fn dispatch_order_for_target_with_names(
         &self,
         target: Entity,
@@ -799,14 +809,14 @@ impl CachedObservers {
 
     fn resolve_set_target(&self, set: &Interned<dyn ObserverSet>) -> SmallVec<[NodeId; 4]> {
         let mut resolved = SmallVec::new();
-        let mut visited = Vec::new();
+        let mut visited = HashSet::<Interned<dyn ObserverSet>>::default();
         let mut stack = vec![*set];
 
         while let Some(current) = stack.pop() {
             if visited.contains(&current) {
                 continue;
             }
-            visited.push(current);
+            visited.insert(current);
 
             if let Some(nodes) = self.sets.get(&current) {
                 for &node_id in nodes {
