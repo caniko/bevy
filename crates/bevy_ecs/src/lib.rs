@@ -52,6 +52,7 @@ pub mod resource;
 pub mod schedule;
 pub mod spawn;
 pub mod storage;
+pub mod sync_barrier;
 pub mod system;
 pub mod template;
 pub mod traversal;
