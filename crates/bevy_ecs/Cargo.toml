@@ -115,6 +115,7 @@ derive_more = { version = "2", default-features = false, features = [
 ] }
 nonmax = { version = "0.5", default-features = false }
 arrayvec = { version = "0.7.4", default-features = false }
+blake3 = { version = "1.8", default-features = false }
 smallvec = { version = "1", default-features = false, features = [
   "union",
   "const_generics",

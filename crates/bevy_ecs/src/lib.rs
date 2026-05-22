@@ -40,6 +40,7 @@ pub mod intern;
 pub mod label;
 pub mod lifecycle;
 pub mod message;
+pub mod mutation_log;
 pub mod name;
 pub mod never;
 pub mod observer;
